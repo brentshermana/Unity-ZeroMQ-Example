@@ -20,21 +20,32 @@ public class NetMqPublisher
 
     public bool Connected;
 
+    bool sending = false;
+
     private void ListenerWork()
     {
         AsyncIO.ForceDotNet.Force();
         using (var server = new ResponseSocket())
         {
-            server.Bind("tcp://*:12346");
+            server.Bind("tcp://*:12345");
 
             while (!_listenerCancelled)
             {
                 Connected = _contactWatch.ElapsedMilliseconds < ContactThreshold;
-                string message;
-                if (!server.TryReceiveFrameString(out message)) continue;
-                _contactWatch.Restart();
-                var response = _messageDelegate(message);
-                server.SendFrame(response);
+                string message = "blah";
+                bool success = false;
+
+                if (sending) {
+                    success = OutgoingSocketExtensions.TrySendFrame(server, message);
+                }
+                else {
+                    success = server.TryReceiveFrameString(out message);
+                }
+
+                if (success) {
+                    sending = !sending;
+                    _contactWatch.Restart();
+                }
             }
         }
         NetMQConfig.Cleanup();
